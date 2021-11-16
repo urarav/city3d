@@ -1,6 +1,6 @@
 <template>
   <el-container>
-    <el-aside width="50" style="height: 100%;">
+    <el-aside width="200" style="height: 100%;">
       <el-menu
           default-active="1"
           class="el-menu-vertical-demo"
@@ -11,18 +11,31 @@
       >
         <el-menu-item index="1" @dblclick.prevent>
           <i class="el-icon-s-opportunity"></i>
+          <span slot="title">CSS2D Label</span>
         </el-menu-item>
         <el-menu-item index="2" @dblclick.prevent>
           <i class="el-icon-s-data"></i>
+          <span slot="title">eCharts Page</span>
         </el-menu-item>
         <el-menu-item index="3" @dblclick.prevent>
           <i class="el-icon-error"></i>
+          <span slot="title">Delete Label</span>
         </el-menu-item>
         <el-menu-item index="4" @dblclick.prevent>
           <i class="el-icon-setting"></i>
+          <span slot="title">Sprite Label</span>
         </el-menu-item>
         <el-menu-item index="5" @dblclick.prevent>
           <i class="el-icon-pie-chart"></i>
+          <span slot="title">eCharts Scene</span>
+        </el-menu-item>
+        <el-menu-item index="6" @dblclick.prevent>
+          <i class="el-icon-place"></i>
+          <span slot="title">First Person</span>
+        </el-menu-item>
+        <el-menu-item index="7" @dblclick.prevent>
+          <i class="el-icon-loading"></i>
+          <span slot="title">Init</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -35,23 +48,10 @@
             <span style="display: inline-block; margin-left: 50px">{{ info.value }}</span>
             <el-divider/>
           </div>
-          <!--          <div>
-                      <span>楼栋名称</span>
-                      <span style="display: inline-block; margin-left: 50px">{{ effectController.name }}</span>
-                    </div>
-                    <el-divider/>
-                    <div>
-                      <span>居住人数</span>
-                      <span style="display: inline-block; margin-left: 50px">{{ effectController.num }}</span>
-                    </div>
-                    <el-divider/>
-                    <div>
-                      <span>楼栋层数</span>
-                      <span style="display: inline-block; margin-left: 50px">{{ effectController.layerNum }}</span>
-                    </div>-->
         </el-card>
       </div>
-      <div id="chart"></div>
+      <div id="chart1" class="chart"></div>
+      <div id="chart2" class="chart"></div>
     </el-main>
   </el-container>
 </template>
@@ -81,6 +81,8 @@ export default {
       progress: 0,
       curve: null,
       truck: null,
+      followTruck: false,
+      spriteArr: [],
       effectController: {
         name: '',
         num: '',
@@ -141,19 +143,20 @@ export default {
     },
     // 初始化灯光
     initLight() {
-      const directionalLight = new THREE.DirectionalLight(0xffffff, 0.3)// 平行光
-      directionalLight.color.setHSL(0.1, 1, 0.95)
-      directionalLight.position.set(0, 2000, 0).normalize()
-      this.scene.add(directionalLight)
-      const ambient = new THREE.AmbientLight(0xffffff, 1) // 环境光
-      ambient.position.set(0, 0, 0)
+      const PointLight = new THREE.PointLight(0xffffff, 0.6)// 平行光
+      // directionalLight.color.setHSL(0.1, 1, 0.95)
+      // directionalLight.position.set(0, 2000, 0).normalize()
+      this.scene.add(PointLight)
+      const ambient = new THREE.AmbientLight(0xffffff) // 环境光
+      // ambient.position.set(0, 0, 0)
       this.scene.add(ambient)
+      this.camera.add(PointLight)
     },
     // 初始化性能插件
     initStats() {
       this.stats = new Stats()
       this.stats.domElement.style.position = 'absolute'
-      this.stats.domElement.style.left = '70px'
+      this.stats.domElement.style.left = '165px'
       this.stats.domElement.style.top = '0px'
       document.body.appendChild(this.stats.domElement)
       return this.stats
@@ -194,16 +197,20 @@ export default {
       // 相对鼠标的相对偏移
       this.css2dRender.domElement.style.top = '0'
       this.css2dRender.domElement.className = 'css2dRender'
-      this.css2dRender.domElement.style.left = '70px'
       // 设置.pointerEvents=none，以免模型标签HTML元素遮挡鼠标选择场景模型
       this.css2dRender.domElement.style.pointerEvents = 'none';
       this.container.appendChild(this.css2dRender.domElement)
       // 抗锯齿
-      this.renderer = new THREE.WebGLRenderer({antialias: true, logarithmicDepthBuffer: true})
+      this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true, logarithmicDepthBuffer: true})
       this.renderer.setPixelRatio(window.devicePixelRatio);
       this.renderer.setSize(this.container.clientWidth, this.container.clientHeight)
-      this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      this.renderer.setClearColor(0xafcccc, 1.0)
+      this.renderer.setClearColor(0xffffff, 1.0)
+      // 把自动清除颜色缓存关闭 这个如果不关闭 后期处理这块会不能有效显示
+      // 书上的描述是 如果不这样做，每次调用效果组合器的render()函数时，之前渲染的场景会被清理掉。通过这种方法，我们只会在render循环开始时，把所有东西清理一遍。
+      this.renderer.autoClear = false
+      // 伽马值启动 更像人眼观察的场景
+      this.renderer.gammaIntput = true
+      this.renderer.gammaOutput = true
       this.container.appendChild(this.renderer.domElement)
     },
     // 渲染
@@ -213,13 +220,19 @@ export default {
       /* if (this.progress > 1.0) {
          return;    //停留在管道末端,否则会一直跑到起点 循环再跑
        }*/
-      this.progress += 0.0009;
+      this.progress += 0.0009
       if (this.curve) {
-        let point = this.curve.getPoint(this.progress);
-        let point1 = this.curve.getPoint(this.progress + 0.001);
+        let point = this.curve.getPoint(this.progress)
+        let point1 = this.curve.getPoint(this.progress + 0.001)
         if (point && point.x) {
-          this.truck.position.set(point.x, point.y, point.z);
-          this.truck.lookAt(point1.x, point1.y, point1.z);
+          this.truck.position.set(point.x, point.y, point.z)
+          this.truck.lookAt(point1.x, point1.y, point1.z)
+          if (this.followTruck) {
+            this.camera.position.set(point.x, point.y + 40, point.z)
+            this.camera.lookAt(point1.x, point1.y + 40, point1.z)
+            this.controls.position0.set(point.x, point.y + 40, point.z)
+            this.controls.target.set(point1.x, point1.y + 40, point1.z)
+          }
         }
       }
     },
@@ -269,7 +282,6 @@ export default {
                     if (obj) {
                       // console.log(obj)
                       obj.children.forEach(child => {
-                        child.material.envmap = this.cubeMap
                         child.geometry.computeBoundingBox()
                         const centroid = new THREE.Vector3()
                         centroid.addVectors(child.geometry.boundingBox.min, child.geometry.boundingBox.max)
@@ -282,6 +294,8 @@ export default {
                       // obj.translateY(-100)
                       this.scene.add(obj)
                       this.effectComposer = new EffectComposer(this.renderer)
+                      this.effectComposer.renderTarget1.stencilBuffer = true
+                      this.effectComposer.renderTarget2.stencilBuffer = true
                       threeJSComposer(this)
                       resolve(obj)
                     } else {
@@ -355,6 +369,7 @@ export default {
       this.update()
       this.css2dRender.render(this.scene, this.camera)
       // 刷新动画
+      // this.camera.lookAt(this.scene.position)
       TWEEN.update()
       this.effectComposer.render(delta)
       // 更新帧动画的时间
@@ -368,17 +383,15 @@ export default {
         const label = this.scene.getObjectByName(ele)
         if (label) return
       }*/
-      this.depInfos = this.scene.children[4].children.filter(ele => ele.name.startsWith('car'))
+      this.depInfos = this.scene.children[3].children.filter(ele => ele.name.startsWith('car'))
       this.depInfos.forEach(ele => {
         const label = this.createTag(ele)
         ele.add(label)
       })
     },
     delLabel() {
-      for (const child of this.scene.children) {
-        if (child.type === 'Sprite') {
+      for (const child of this.spriteArr) {
           this.scene.remove(child)
-        }
       }
       for (const ele of this.labelArray) {
         const label = this.scene.getObjectByName(ele)
@@ -418,6 +431,16 @@ export default {
         case '5':
           this.initSceneCharts(carArr)
           break
+        case '6':
+          this.followTruck = true
+          this.initSceneCharts(carArr)
+          break
+        case '7':
+          this.followTruck = false
+          this.controls.position0 = new THREE.Vector3(1500, 1500, 1500)
+          this.controls.reset()
+          this.containBox()
+          break;
       }
     },
     initSceneCharts(meshNames) {
@@ -477,23 +500,29 @@ export default {
 
           const infoEchartMaterial = new THREE.MeshBasicMaterial({
             transparent: true,
+            opacity: 1,
             map: infoEchart,
             side: THREE.DoubleSide
           });
 
           const echartPlane = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), infoEchartMaterial);
           echartPlane.position.set(_obj.position.x, _obj.position.y, _obj.position.z);
-          echartPlane.translateY(15);
+          echartPlane.translateY(_obj.position.y + 100);
           this.scene.add(echartPlane);
         });
       }
     },
     initCharts() {
-      const div = document.querySelector('#chart')
-      div.style.display = div.style.display === 'block' ? 'none' : 'block'
-      div.style.backgroundColor = 'rgba(25,25,25,0.5)';
-      const pageChart = echarts.init(div);
-      const option = {
+      for (const ele of document.querySelectorAll('.chart')) {
+        ele.style.backgroundColor = 'rgba(25,25,25,0.5)'
+        ele.style.display = ele.style.display === 'block' ? 'none' : 'block'
+
+      }
+      const div1 = document.querySelector('#chart1')
+      const div2 = document.querySelector('#chart2')
+      const pageChart1 = echarts.init(div1);
+      const pageChart2 = echarts.init(div2);
+      const option1 = {
         title: {
           text: '部门统计',
           subtext: '人员数据',
@@ -527,9 +556,73 @@ export default {
             }
           }
         ]
+      }
+      const data = [];
+      for (let i = 0; i < 5; ++i) {
+        data.push(Math.round(Math.random() * 200));
+      }
+      const option2 = {
+        xAxis: {
+          max: 'dataMax'
+        },
+        yAxis: {
+          type: 'category',
+          data: ['A', 'B', 'C', 'D', 'E'],
+          inverse: true,
+          animationDuration: 300,
+          animationDurationUpdate: 300,
+          max: 2 // only the largest 3 bars will be displayed
+        },
+        series: [
+          {
+            realtimeSort: true,
+            name: 'X',
+            type: 'bar',
+            data: data,
+            label: {
+              show: true,
+              position: 'right',
+              valueAnimation: true
+            }
+          }
+        ],
+        legend: {
+          show: true
+        },
+        animationDuration: 0,
+        animationDurationUpdate: 3000,
+        animationEasing: 'linear',
+        animationEasingUpdate: 'linear'
       };
-      pageChart.setOption(option)
-      this.container.appendChild(div)
+
+      function run() {
+        for (let i = 0; i < data.length; ++i) {
+          if (Math.random() > 0.9) {
+            data[i] += Math.round(Math.random() * 2000);
+          } else {
+            data[i] += Math.round(Math.random() * 200);
+          }
+        }
+        pageChart2.setOption({
+          series: [
+            {
+              type: 'bar',
+              data
+            }
+          ]
+        });
+      }
+
+      setTimeout(() => {
+        run();
+      }, 0);
+      setInterval(() => {
+        run();
+      }, 3000);
+      pageChart1.setOption(option1)
+      this.container.appendChild(div1)
+      pageChart2.setOption(option2)
+      this.container.appendChild(div2)
     },
     //添加图片标识
     addIdentification(meshNames, imgUrl) {
@@ -548,7 +641,45 @@ export default {
         sprite.scale.set(50, 50, 50);
         sprite.translateY(_obj.position.y + 100);
         sprite.matrixWorldNeedsUpdate = true
-        this.scene.add(sprite);
+        this.spriteArr.push(sprite)
+        this.scene.add(sprite)
+      }
+    },
+    containBox() {
+      const depArr = []
+      for (const child of this.scene.children[3].children) {
+        if (child.name.startsWith('dep')) {
+          const box = new THREE.Box3()
+          child.geometry.computeBoundingBox()
+          box.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld)
+          const helper = new THREE.Box3Helper(box, 0xff0000)
+          depArr.push({mesh: child, meshBox: box})
+          this.scene.add(helper)
+          /*const cubeInfo = box.getSize(new THREE.Vector3())
+          const cubeGeometry = new THREE.BoxGeometry(cubeInfo.x, cubeInfo.y - Math.round(Math.random() * 500), cubeInfo.z)
+          const cubeMaterial = new THREE.MeshPhongMaterial({
+            color: 0xFFFFFF * Math.random(),
+            transparent: true,
+            opacity: 0.8
+          })
+          const cube = new THREE.Mesh(cubeGeometry, cubeMaterial)
+          cube.position.set(child.position.x, child.position.y, child.position.z)
+          this.scene.add(cube)
+          child.parent.remove(child)*/
+        }
+      }
+      for (let i = 0; i < depArr.length; i++) {
+        this.scene.children[3].remove(depArr[i].mesh)
+        const cubeInfo = depArr[i].meshBox.getSize(new THREE.Vector3())
+        const cubeGeometry = new THREE.BoxGeometry(cubeInfo.x, cubeInfo.y - Math.round(Math.random() * 200), cubeInfo.z)
+        const cubeMaterial = new THREE.MeshPhongMaterial({
+          color: 0xFFFFFF * Math.random(),
+          transparent: true,
+          opacity: 0.8
+        })
+        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial)
+        cube.position.set(depArr[i].mesh.position.x, 0, depArr[i].mesh.position.z)
+        this.scene.add(cube)
       }
     }
   }
@@ -567,14 +698,21 @@ export default {
   width: 100px;
 }
 
-#chart {
+.chartLayout {
   width: 500px;
   height: 500px;
   position: absolute;
-  left: 70px;
   bottom: 0;
   display: block;
   border-radius: 10px;
+}
+
+#chart1:extend(.chartLayout) {
+  left: 165px;
+}
+
+#chart2:extend(.chartLayout) {
+  right: 0;
 }
 
 /deep/ .el-menu {

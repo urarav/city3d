@@ -8,16 +8,37 @@ import {RenderPass} from "three/examples/jsm/postprocessing/RenderPass"
 import {ShaderPass} from "three/examples/jsm/postprocessing/ShaderPass"
 import {FXAAShader} from "three/examples/jsm/shaders/FXAAShader"
 import {OutlinePass} from "three/examples/jsm/postprocessing/OutlinePass"
+import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass"
 import {TWEEN} from "three/examples/jsm/libs/tween.module.min"
+import {CopyShader} from "three/examples/jsm/shaders/CopyShader";
 
 function threeJSComposer(_this) {
     const rayCaster = new THREE.Raycaster()
     let x, y
     const mouse = new THREE.Vector2()
     const selectedObjects = []
+    // 初始化bloomPass
+    const bloomPass = new UnrealBloomPass(
+        // 没研究过这些参数的意义 会提上日程
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        1.5,
+        0.4,
+        0.85
+    );
+    // 一些参数 可以调整看效果
+    bloomPass.threshold = 0.36;
+    bloomPass.strength = 0.6;
+    bloomPass.radius = 0;
+
+    // effectCopy
+    const effectCopy = new ShaderPass(CopyShader);
+    // 让effectCopy渲染到屏幕上 没这句不会再屏幕上渲染
+    effectCopy.renderToScreen = true
     // 添加renderPass通道，这个通道会渲染场景，但不会将渲染结果输出到屏幕上。
     const renderPass = new RenderPass(_this.scene, _this.camera)
     _this.effectComposer.addPass(renderPass)
+    // _this.effectComposer.addPass(bloomPass)
+    _this.effectComposer.addPass(effectCopy)
     // three.js使用OutlinePass给3D对象添加轮廓线
     const outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), _this.scene, _this.camera)
     // outlinePass.edgeStrength = 5//包围线浓度
@@ -95,9 +116,8 @@ function threeJSComposer(_this) {
         const vector = new THREE.Vector3()//三维坐标对象
         vector.set(mouse.x, mouse.y, 0.5)
         vector.unproject(_this.camera)
-        console.log(vector)
         const caster = new THREE.Raycaster(_this.camera.position, vector.sub(_this.camera.position).normalize())
-        const intersects = caster.intersectObjects(_this.scene.children[4].children)
+        const intersects = caster.intersectObjects(_this.scene.children[3].children)
         if (intersects.length > 0) {
             const selected = intersects[0]//取第一个物体
             if (selected.object.name !== '') {
@@ -123,7 +143,6 @@ function threeJSComposer(_this) {
         //屏幕坐标转标准设备坐标
         mouse.x = ((x - rect.left) / this.container.clientWidth) * 2 - 1;
         mouse.y = -((y - rect.top) / this.container.clientHeight) * 2 + 1;
-        console.log(_this.camera)
         rayCaster.setFromCamera(mouse, _this.camera)
 
         const intersects = rayCaster.intersectObjects([_this.scene], true)
@@ -137,7 +156,6 @@ function threeJSComposer(_this) {
                 label.style.display = 'none'
                 return
             }
-            console.log(soName)
             switch (soName.substring(0, 3)) {
                 case 'tru':
                     _this.dataInfo = [
@@ -179,7 +197,6 @@ function threeJSComposer(_this) {
                     displayAt(label, x, y)
                     break
                 default:
-                    console.log('default')
                     label.style.display = 'none'
                     selectedObjects.pop()
                     break
