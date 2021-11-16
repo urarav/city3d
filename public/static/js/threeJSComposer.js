@@ -123,6 +123,7 @@ function threeJSComposer(_this) {
         //屏幕坐标转标准设备坐标
         mouse.x = ((x - rect.left) / this.container.clientWidth) * 2 - 1;
         mouse.y = -((y - rect.top) / this.container.clientHeight) * 2 + 1;
+        console.log(_this.camera)
         rayCaster.setFromCamera(mouse, _this.camera)
 
         const intersects = rayCaster.intersectObjects([_this.scene], true)
@@ -184,23 +185,38 @@ function threeJSComposer(_this) {
                     break
             }
             if (soName.startsWith('trafficLight')) {
-                const video = document.querySelector('#video')
-                const div = document.createElement('div')
-                div.style.cssText = 'width: 100px;height: 80px;'
+                const parentDiv = document.createElement('div')
+                parentDiv.className = 'parentVideo'
+                parentDiv.style.position = 'absolute'
+                parentDiv.style.display = 'none'
+                parentDiv.style.backgroundColor = 'rgba(0, 255, 255, 0.5)'
+                const titleDiv = document.createElement('div')
+                titleDiv.style.cssText = 'height: 24px;inline-height: 24px;float: left'
+                titleDiv.textContent = '监控录像'
+                const closeDiv = document.createElement('div')
+                closeDiv.className = 'videoImg'
+                closeDiv.addEventListener('click', () => {
+                    const videoDiv = document.querySelectorAll('.parentVideo')
+                    for (const e of videoDiv) {
+                        e.remove()
+                    }
+                })
+                parentDiv.appendChild(titleDiv)
+                parentDiv.appendChild(closeDiv)
                 const videoLabel = document.createElement('video')
                 videoLabel.autoplay = true
                 videoLabel.muted = true
                 videoLabel.controls = true
+                videoLabel.loop = true
                 videoLabel.style.width = '100%'
                 videoLabel.style.height = '100%'
                 const videoSource = document.createElement('source')
                 videoSource.src = 'static/video/video.mp4'
                 videoSource.type = 'video/mp4'
                 videoLabel.appendChild(videoSource)
-                div.appendChild(videoLabel)
-                video.appendChild(div)
-                console.log(1111)
-                displayAt(video, x, y)
+                parentDiv.appendChild(videoLabel)
+                document.body.appendChild(parentDiv)
+                displayAt(parentDiv, x, y)
             } else {
                 // 设置标签位置
                 // 显示模型信息

@@ -23,4 +23,10 @@ html,body,#app,.el-container,#container{
   /*统一设置高度为100%*/
   height: 100%;
 }
+.videoImg {
+  background: url(../public/static/images/close.png) no-repeat;
+  float: right;
+  width: 24px;
+  height: 24px;
+}
 </style>

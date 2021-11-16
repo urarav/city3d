@@ -52,7 +52,6 @@
         </el-card>
       </div>
       <div id="chart"></div>
-      <div id="video"></div>
     </el-main>
   </el-container>
 </template>
@@ -556,17 +555,18 @@ export default {
 }
 </script>
 
-<style scoped>
+<style scoped lang="less">
 .label {
   position: absolute;
   background: rgba(0, 0, 0, 0.6);
   color: #ffffff;
 }
 
-.label span{
+.label span {
   display: inline-block;
   width: 100px;
 }
+
 #chart {
   width: 500px;
   height: 500px;
@@ -605,10 +605,5 @@ export default {
   position: absolute;
   top: 100%;
   left: 10px;
-}
-
-#video {
-  position: absolute;
-  display: none;
 }
 </style>
