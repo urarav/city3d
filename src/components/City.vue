@@ -36,19 +36,19 @@
 import * as THREE from 'three'
 import * as echarts from "echarts"
 import Stats from '../../public/static/js/stats'
+import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls'
+import {GUI} from 'three/examples/jsm/libs/dat.gui.module'
+import {TWEEN} from "three/examples/jsm/libs/tween.module.min"
 import {MTLLoader} from 'three/examples/jsm/loaders/MTLLoader'
 import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader'
-import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls'
 import {threeJSComposer} from "../../public/static/js/threeJSComposer"
 import {EffectComposer} from "three/examples/jsm/postprocessing/EffectComposer"
-import {TWEEN} from "three/examples/jsm/libs/tween.module.min"
-import {GUI} from 'three/examples/jsm/libs/dat.gui.module'
 import {CSS2DObject, CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer"
 import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass"
 import {ShaderPass} from "three/examples/jsm/postprocessing/ShaderPass"
-import {CopyShader} from "three/examples/jsm/shaders/CopyShader"
 import {RenderPass} from "three/examples/jsm/postprocessing/RenderPass"
 import {OutlinePass} from "three/examples/jsm/postprocessing/OutlinePass"
+import {CopyShader} from "three/examples/jsm/shaders/CopyShader"
 import {FXAAShader} from "three/examples/jsm/shaders/FXAAShader"
 
 export default {
@@ -66,14 +66,16 @@ export default {
       ],
       groupIndex: 0,
       css2dLabelArray: [],
+      spriteLabelArray: [],
       selectedInfos: [],
+      containBoxArray: [],
+      cubeArray: [],
       mixer: null,
       dataInfo: [],
       progress: 0,
       curve: null,
       truck: null,
       followTruck: false,
-      spriteLabelArray: [],
       loadFlag: false,
       effectController: {
         name: '',
@@ -153,7 +155,7 @@ export default {
             const loadingMask = document.querySelector('#loadingHtml')
             loadingMask.remove()
             this.initTrail(obj)
-            this.animate()
+            this.render()
             this.groupIndex = this.scene.children.findIndex(item => item.type === 'Group')
           })
       window.addEventListener('resize', this.onWindowResize, false)
@@ -387,7 +389,7 @@ export default {
          AnimationAction.timeScale = 20
          AnimationAction.play()*/
     },
-    animate() {
+    render() {
       const delta = this.clock.getDelta()
       this.truckAnimate()
       // 更新控件
@@ -400,7 +402,7 @@ export default {
       // 更新帧动画的时间
       // this.mixer.update(delta)
       // 请求动画帧
-      requestAnimationFrame(this.animate)
+      requestAnimationFrame(this.render)
     },
     truckAnimate() {
       // 使用加减法可以设置不同的运动方向
@@ -650,40 +652,41 @@ export default {
       this.container.appendChild(div2)
     },
     containBox() {
-      const depArr = []
-      for (const child of this.scene.children[this.groupIndex].children) {
-        if (child.name.startsWith('dep')) {
-          const box = new THREE.Box3()
-          child.geometry.computeBoundingBox()
-          box.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld)
-          const helper = new THREE.Box3Helper(box, 0xff0000)
-          depArr.push({mesh: child, meshBox: box})
-          this.scene.add(helper)
-          /*const cubeInfo = box.getSize(new THREE.Vector3())
-          const cubeGeometry = new THREE.BoxGeometry(cubeInfo.x, cubeInfo.y - Math.round(Math.random() * 500), cubeInfo.z)
+      if (this.containBoxArray.length) {
+        this.cubeArray.forEach(item => item.parent.remove(item))
+        this.cubeArray.splice(0)
+        const index = this.scene.children.findIndex(x => x instanceof THREE.Box3Helper)
+        this.containBoxArray.forEach(ele => {
+          this.scene.children[this.groupIndex].add(ele.mesh)
+          this.scene.children.splice(index)
+          // this.scene.children.splice(5)
+        })
+        this.containBoxArray.splice(0)
+      } else {
+        for (const child of this.scene.children[this.groupIndex].children) {
+          if (child.name.startsWith('dep')) {
+            const box = new THREE.Box3()
+            child.geometry.computeBoundingBox()
+            box.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld)
+            const helper = new THREE.Box3Helper(box, 0x1ac6ff)
+            this.containBoxArray.push({mesh: child, meshBox: box})
+            this.scene.add(helper)
+          }
+        }
+        for (const ele of this.containBoxArray) {
+          ele.mesh.parent.remove(ele.mesh)
+          const cubeInfo = ele.meshBox.getSize(new THREE.Vector3())
+          const cubeGeometry = new THREE.BoxGeometry(cubeInfo.x, cubeInfo.y - Math.round(Math.random() * 200), cubeInfo.z)
           const cubeMaterial = new THREE.MeshPhongMaterial({
             color: 0xFFFFFF * Math.random(),
             transparent: true,
             opacity: 0.8
           })
           const cube = new THREE.Mesh(cubeGeometry, cubeMaterial)
-          cube.position.set(child.position.x, child.position.y, child.position.z)
+          cube.position.set(ele.mesh.position.x, 0, ele.mesh.position.z)
+          this.cubeArray.push(cube)
           this.scene.add(cube)
-          child.parent.remove(child)*/
         }
-      }
-      for (let i = 0; i < depArr.length; i++) {
-        this.scene.children[3].remove(depArr[i].mesh)
-        const cubeInfo = depArr[i].meshBox.getSize(new THREE.Vector3())
-        const cubeGeometry = new THREE.BoxGeometry(cubeInfo.x, cubeInfo.y - Math.round(Math.random() * 200), cubeInfo.z)
-        const cubeMaterial = new THREE.MeshPhongMaterial({
-          color: 0xFFFFFF * Math.random(),
-          transparent: true,
-          opacity: 0.8
-        })
-        const cube = new THREE.Mesh(cubeGeometry, cubeMaterial)
-        cube.position.set(depArr[i].mesh.position.x, 0, depArr[i].mesh.position.z)
-        this.scene.add(cube)
       }
     },
     onWindowResize() {
@@ -691,7 +694,7 @@ export default {
       this.camera.updateProjectionMatrix()
       this.renderer.setSize(this.container.clientWidth, this.container.clientHeight)
       this.css2dRender.setSize(this.container.clientWidth, this.container.clientHeight)
-      this.animate()
+      // this.render()
     }
   }
 }
