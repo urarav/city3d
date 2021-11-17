@@ -2,7 +2,7 @@
   <el-container>
     <el-aside width="200" style="height: 100%;">
       <el-menu
-          default-active="1"
+          default-active="0"
           class="el-menu-vertical-demo"
           background-color="#545c64"
           text-color="#fff"
@@ -62,51 +62,58 @@ export default {
         {label: 'eCharts Scene', icon: 'el-icon-pie-chart'},
         {label: 'First Person', icon: 'el-icon-place'},
         {label: 'Bounding Box', icon: 'el-icon-view'},
-        {label: 'Init Viewport', icon: 'el-icon-loading'}
+        {label: 'Init Viewport', icon: 'el-icon-loading'},
+        {label: 'Snow Weather', icon: 'el-icon-light-rain'}
       ],
-      groupIndex: 0,
-      css2dLabelArray: [],
-      spriteLabelArray: [],
-      selectedInfos: [],
-      containBoxArray: [],
-      cubeArray: [],
-      mixer: null,
-      dataInfo: [],
       progress: 0,
+      groupIndex: 0,
+      dataInfo: [],
+      cubeArray: [],
+      selectedInfos: [],
+      css2dLabelArray: [],
+      containBoxArray: [],
+      spriteLabelArray: [],
+      mixer: null,
       curve: null,
       truck: null,
-      followTruck: false,
-      loadFlag: false,
       effectController: {
-        name: '',
-        num: '',
-        layerNum: ''
-      }
+        A: '',
+        B: '',
+        C: ''
+      },
+      loadFlag: false,
+      followTruck: false
     }
   },
   mounted() {
+    this.animationID = 0
+    this.scene = null
+    this.stats = null
+    this.camera = null
+    this.cubeMap = null
+    this.renderer = null
+    this.controls = null
+    this.outlinePass = null
+    this.css2dRender = null
     this.effectComposer = null
     this.clock = new THREE.Clock()
-    this.scene = null
-    this.camera = null
-    this.renderer = null
-    this.css2dRender = null
-    this.controls = null
-    this.stats = null
-    this.cubeMap = null
-    this.outlinePass = null
     this.container = document.querySelector('#container')
-    this.init()
     this.initLoading()
+    this.init()
   },
   beforeDestroy() {
-    this.scene = null
-    this.camera = null
-    this.css2dRender = null
-    this.renderer = null
-    this.controls = null
+    this.scene.clear()
     this.stats = null
+    this.camera = null
     this.cubeMap = null
+    cancelAnimationFrame(this.animationID)
+    this.renderer.forceContextLoss()
+    this.renderer.dispose()
+    this.renderer.content = null
+    let gl = this.renderer.domElement.getContext('webgl')
+    gl && gl.getExtension('WEBGL_lose_context').loseContext()
+    this.controls = null
+    this.css2dRender = null
     this.outlinePass = null
   },
   methods: {
@@ -138,6 +145,8 @@ export default {
           this.controls.position0 = new THREE.Vector3(1500, 1500, 1500)
           this.controls.reset()
           break
+        case '7':
+          this.snowSprite()
       }
     },
     init() {
@@ -158,6 +167,7 @@ export default {
             this.render()
             this.groupIndex = this.scene.children.findIndex(item => item.type === 'Group')
           })
+          .catch(error => console.error(error))
       window.addEventListener('resize', this.onWindowResize, false)
     },
     initLoading() {
@@ -178,11 +188,11 @@ export default {
       this.camera.lookAt(new THREE.Vector3(0, 0, 0))
     },
     initLight() {
-      const PointLight = new THREE.PointLight(0xffffff, 0.6)// 平行光
+      const PointLight = new THREE.PointLight(0xffffff, 0.6)
       // directionalLight.color.setHSL(0.1, 1, 0.95)
       // directionalLight.position.set(0, 2000, 0).normalize()
       this.scene.add(PointLight)
-      const ambient = new THREE.AmbientLight(0xffffff) // 环境光
+      const ambient = new THREE.AmbientLight(0xffffff)
       // ambient.position.set(0, 0, 0)
       this.scene.add(ambient)
       this.camera.add(PointLight)
@@ -192,7 +202,8 @@ export default {
       this.css2dRender.setSize(this.container.clientWidth, this.container.clientHeight)
       this.css2dRender.domElement.style.position = 'absolute'
       // 相对鼠标的相对偏移
-      this.css2dRender.domElement.style.top = '0'
+      this.css2dRender.domElement.style.top = '-20px'
+      this.css2dRender.domElement.style.right = '-20px'
       this.css2dRender.domElement.className = 'css2dRender'
       // 设置.pointerEvents=none，以免模型标签HTML元素遮挡鼠标选择场景模型
       this.css2dRender.domElement.style.pointerEvents = 'none'
@@ -222,9 +233,9 @@ export default {
       const gui = new GUI()
       gui.domElement.classList.add()
       gui.domElement.style.cssText = 'position:absolute;top:0;right:0;'
-      gui.add(this.effectController, 'name').name("propName1：").listen()
-      gui.add(this.effectController, 'num').name("propName2：").listen()
-      gui.add(this.effectController, 'layerNum').name("propName3：").listen()
+      gui.add(this.effectController, 'A').name("propName1：").listen()
+      gui.add(this.effectController, 'B').name("propName2：").listen()
+      gui.add(this.effectController, 'C').name("propName3：").listen()
     },
     initControls() {
       this.controls = new OrbitControls(this.camera, this.renderer.domElement)
@@ -392,17 +403,27 @@ export default {
     render() {
       const delta = this.clock.getDelta()
       this.truckAnimate()
+      this.controls.update()
+      this.update()
+      this.css2dRender.render(this.scene, this.camera)
+      this.effectComposer.render(delta)
+      // 请求动画帧
+      this.animationID = requestAnimationFrame(this.render)
+    },
+    update() {
       // 更新控件
       this.stats.update()
-      this.controls.update()
-      this.css2dRender.render(this.scene, this.camera)
       // 刷新动画
       TWEEN.update()
-      this.effectComposer.render(delta)
       // 更新帧动画的时间
       // this.mixer.update(delta)
-      // 请求动画帧
-      requestAnimationFrame(this.render)
+      const time = Date.now() * 0.00005;
+      for (let i = 0; i < this.scene.children.length; i++) {
+        const object = this.scene.children[i];
+        if (object instanceof THREE.Points) {
+          object.rotation.z = -(time * (i < 4 ? i + 1 : -(i + 1)));
+        }
+      }
     },
     truckAnimate() {
       // 使用加减法可以设置不同的运动方向
@@ -435,7 +456,7 @@ export default {
         const labelObj = this.scene.children[this.groupIndex].children.filter(ele => ele.name.startsWith('car'))
         labelObj.forEach(ele => {
           const css2dLabel = document.createElement('div')
-          css2dLabel.textContent = ele.name
+          css2dLabel.innerHTML = `<div style="text-align: center">${ele.name}</div><div class=".labelText">${Math.round(Math.random() * 200)}km/h</div>`
           const label = new CSS2DObject(css2dLabel)
           // label.name = ele.name + 'css2dLabel'
           this.css2dLabelArray.push(label)
@@ -688,6 +709,40 @@ export default {
           this.scene.add(cube)
         }
       }
+    },
+    snowSprite() {
+      /* 雪花图片 */
+      new THREE.TextureLoader().load(require('../../public/static/images/snowflake2.png'), map => {
+        let geometry = new THREE.BufferGeometry()
+
+        let pointsMaterial = new THREE.PointsMaterial({
+
+          size: 20,
+          transparent: true,
+          opacity: 0.8,
+          map: map,
+          blending: THREE.AdditiveBlending,
+          sizeAttenuation: true,
+          depthTest: false
+        })
+
+        let range = 5000;
+
+        const vertices = []
+        for (let i = 0; i < 10000; i++) {
+          const x = Math.random() * range - range / 2
+          const y = Math.random() * range - range / 2
+          const z = Math.random() * range - range / 2
+          vertices.push(x, y, z)
+        }
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+        const particles = new THREE.Points(geometry, pointsMaterial);
+        particles.rotation.x = Math.random() * 6;
+        particles.rotation.y = Math.random() * 6;
+        particles.rotation.z = Math.random() * 6;
+        this.scene.add(particles);
+        console.log(this.scene)
+      })
     },
     onWindowResize() {
       this.camera.aspect = window.innerWidth / window.innerHeight

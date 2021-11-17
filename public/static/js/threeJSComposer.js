@@ -200,9 +200,9 @@ function threeJSComposer(_this) {
                 // 给选中的线条和物体加发光特效
                 _this.outlinePass.selectedObjects = selectedObjects
             }
-            _this.effectController.name = soName
-            _this.effectController.num = Math.round(Math.random() * 200)
-            _this.effectController.layerNum = Math.round(Math.random() * 50)
+            _this.effectController.A = soName
+            _this.effectController.B = Math.round(Math.random() * 200)
+            _this.effectController.C = Math.round(Math.random() * 50)
         }
     }
 }
