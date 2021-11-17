@@ -4,55 +4,13 @@
  * @createDate: 2021/11/6
  * */
 import * as THREE from 'three'
-import {RenderPass} from "three/examples/jsm/postprocessing/RenderPass"
-import {ShaderPass} from "three/examples/jsm/postprocessing/ShaderPass"
-import {FXAAShader} from "three/examples/jsm/shaders/FXAAShader"
-import {OutlinePass} from "three/examples/jsm/postprocessing/OutlinePass"
-import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass"
 import {TWEEN} from "three/examples/jsm/libs/tween.module.min"
-import {CopyShader} from "three/examples/jsm/shaders/CopyShader";
 
 function threeJSComposer(_this) {
     const rayCaster = new THREE.Raycaster()
     let x, y
     const mouse = new THREE.Vector2()
     const selectedObjects = []
-    // 初始化bloomPass
-    const bloomPass = new UnrealBloomPass(
-        // 没研究过这些参数的意义 会提上日程
-        new THREE.Vector2(window.innerWidth, window.innerHeight),
-        1.5,
-        0.4,
-        0.85
-    );
-    // 一些参数 可以调整看效果
-    bloomPass.threshold = 0.36;
-    bloomPass.strength = 0.6;
-    bloomPass.radius = 0;
-
-    // effectCopy
-    const effectCopy = new ShaderPass(CopyShader);
-    // 让effectCopy渲染到屏幕上 没这句不会再屏幕上渲染
-    effectCopy.renderToScreen = true
-    // 添加renderPass通道，这个通道会渲染场景，但不会将渲染结果输出到屏幕上。
-    const renderPass = new RenderPass(_this.scene, _this.camera)
-    _this.effectComposer.addPass(renderPass)
-    // _this.effectComposer.addPass(bloomPass)
-    _this.effectComposer.addPass(effectCopy)
-    // three.js使用OutlinePass给3D对象添加轮廓线
-    const outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), _this.scene, _this.camera)
-    // outlinePass.edgeStrength = 5//包围线浓度
-    // outlinePass.edgeGlow = 0.5//边缘线范围
-    // outlinePass.edgeThickness = 2//边缘线浓度
-    // outlinePass.pulsePeriod = 2//包围线闪烁频率
-    outlinePass.visibleEdgeColor.set(0x00ffff)//包围线颜色
-    // outlinePass.hiddenEdgeColor.set('#190a05')//被遮挡的边界线颜色
-    _this.effectComposer.addPass(outlinePass)
-    // 该着色器主要功能是解决锯齿问题
-    const effectFXAA = new ShaderPass(FXAAShader)
-    effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight)
-    effectFXAA.renderToScreen = true
-    _this.effectComposer.addPass(effectFXAA)
     const label = document.querySelector('.label')
     window.addEventListener('click', onMouseClick)
     window.addEventListener('dblclick', onMouseDBClick)
@@ -63,7 +21,6 @@ function threeJSComposer(_this) {
         tooltip.style.left = `${x}px`
         tooltip.style.top = `${y - 40}px`
     }
-
 
     // current1 相机当前的位置
     // target1 相机的controls的target
@@ -117,7 +74,7 @@ function threeJSComposer(_this) {
         vector.set(mouse.x, mouse.y, 0.5)
         vector.unproject(_this.camera)
         const caster = new THREE.Raycaster(_this.camera.position, vector.sub(_this.camera.position).normalize())
-        const intersects = caster.intersectObjects(_this.scene.children[3].children)
+        const intersects = caster.intersectObjects([_this.scene], true)
         if (intersects.length > 0) {
             const selected = intersects[0]//取第一个物体
             if (selected.object.name !== '') {
@@ -139,10 +96,10 @@ function threeJSComposer(_this) {
             x = event.clientX
             y = event.clientY
         }
-        const rect = _this.container.getBoundingClientRect();//拿到div相对屏幕坐标的偏移量
+        const rect = _this.container.getBoundingClientRect()//拿到div相对屏幕坐标的偏移量
         //屏幕坐标转标准设备坐标
-        mouse.x = ((x - rect.left) / this.container.clientWidth) * 2 - 1;
-        mouse.y = -((y - rect.top) / this.container.clientHeight) * 2 + 1;
+        mouse.x = ((x - rect.left) / this.container.clientWidth) * 2 - 1
+        mouse.y = -((y - rect.top) / this.container.clientHeight) * 2 + 1
         rayCaster.setFromCamera(mouse, _this.camera)
 
         const intersects = rayCaster.intersectObjects([_this.scene], true)
@@ -208,7 +165,7 @@ function threeJSComposer(_this) {
                 parentDiv.style.display = 'none'
                 parentDiv.style.backgroundColor = 'rgba(0, 255, 255, 0.5)'
                 const titleDiv = document.createElement('div')
-                titleDiv.style.cssText = 'height: 24px;inline-height: 24px;float: left'
+                titleDiv.style.cssText = 'height: 24px;inline-height: 24px;float: left;'
                 titleDiv.textContent = '监控录像'
                 const closeDiv = document.createElement('div')
                 closeDiv.className = 'videoImg'
@@ -241,7 +198,7 @@ function threeJSComposer(_this) {
                 selectedObjects.pop()
                 selectedObjects.push(intersects[0].object)
                 // 给选中的线条和物体加发光特效
-                outlinePass.selectedObjects = selectedObjects
+                _this.outlinePass.selectedObjects = selectedObjects
             }
             _this.effectController.name = soName
             _this.effectController.num = Math.round(Math.random() * 200)

@@ -9,33 +9,9 @@
           active-text-color="#ffd04b"
           @select="handleSelect"
       >
-        <el-menu-item index="1" @dblclick.prevent>
-          <i class="el-icon-s-opportunity"></i>
-          <span slot="title">CSS2D Label</span>
-        </el-menu-item>
-        <el-menu-item index="2" @dblclick.prevent>
-          <i class="el-icon-s-data"></i>
-          <span slot="title">eCharts Page</span>
-        </el-menu-item>
-        <el-menu-item index="3" @dblclick.prevent>
-          <i class="el-icon-error"></i>
-          <span slot="title">Delete Label</span>
-        </el-menu-item>
-        <el-menu-item index="4" @dblclick.prevent>
-          <i class="el-icon-setting"></i>
-          <span slot="title">Sprite Label</span>
-        </el-menu-item>
-        <el-menu-item index="5" @dblclick.prevent>
-          <i class="el-icon-pie-chart"></i>
-          <span slot="title">eCharts Scene</span>
-        </el-menu-item>
-        <el-menu-item index="6" @dblclick.prevent>
-          <i class="el-icon-place"></i>
-          <span slot="title">First Person</span>
-        </el-menu-item>
-        <el-menu-item index="7" @dblclick.prevent>
-          <i class="el-icon-loading"></i>
-          <span slot="title">Init</span>
+        <el-menu-item v-for="(item,index) in menuList" :index="index.toString()" :key="index">
+          <i :class="item.icon"></i>
+          <span slot="title">{{ item.label }}</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -45,7 +21,7 @@
         <el-card style="width: 300px" class="label">
           <div v-for="(info,index) in dataInfo" :key="index">
             <span>{{ info.key }}</span>
-            <span style="display: inline-block; margin-left: 50px">{{ info.value }}</span>
+            <span style="display: inline-block; margin-left: 50px;">{{ info.value }}</span>
             <el-divider/>
           </div>
         </el-card>
@@ -58,6 +34,7 @@
 
 <script>
 import * as THREE from 'three'
+import * as echarts from "echarts"
 import Stats from '../../public/static/js/stats'
 import {MTLLoader} from 'three/examples/jsm/loaders/MTLLoader'
 import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader'
@@ -66,15 +43,29 @@ import {threeJSComposer} from "../../public/static/js/threeJSComposer"
 import {EffectComposer} from "three/examples/jsm/postprocessing/EffectComposer"
 import {TWEEN} from "three/examples/jsm/libs/tween.module.min"
 import {GUI} from 'three/examples/jsm/libs/dat.gui.module'
-import {CSS2DObject, CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer";
-import * as echarts from "echarts";
+import {CSS2DObject, CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer"
+import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass"
+import {ShaderPass} from "three/examples/jsm/postprocessing/ShaderPass"
+import {CopyShader} from "three/examples/jsm/shaders/CopyShader"
+import {RenderPass} from "three/examples/jsm/postprocessing/RenderPass"
+import {OutlinePass} from "three/examples/jsm/postprocessing/OutlinePass"
+import {FXAAShader} from "three/examples/jsm/shaders/FXAAShader"
 
 export default {
   name: "City",
   data() {
     return {
-      depInfos: [],
-      labelArray: [],
+      menuList: [
+        {label: 'CSS2D Label', icon: 'el-icon-collection-tag'},
+        {label: 'ECharts Page', icon: 'el-icon-s-data'},
+        {label: 'Sprite Label', icon: 'el-icon-magic-stick'},
+        {label: 'eCharts Scene', icon: 'el-icon-pie-chart'},
+        {label: 'First Person', icon: 'el-icon-place'},
+        {label: 'Bounding Box', icon: 'el-icon-view'},
+        {label: 'Init Viewport', icon: 'el-icon-loading'}
+      ],
+      groupIndex: 0,
+      css2dLabelArray: [],
       selectedInfos: [],
       mixer: null,
       dataInfo: [],
@@ -82,7 +73,8 @@ export default {
       curve: null,
       truck: null,
       followTruck: false,
-      spriteArr: [],
+      spriteLabelArray: [],
+      loadFlag: false,
       effectController: {
         name: '',
         num: '',
@@ -100,8 +92,10 @@ export default {
     this.controls = null
     this.stats = null
     this.cubeMap = null
+    this.outlinePass = null
     this.container = document.querySelector('#container')
-    this.init()// this.labelArray = this.getLabel()
+    this.init()
+    this.initLoading()
   },
   beforeDestroy() {
     this.scene = null
@@ -111,8 +105,39 @@ export default {
     this.controls = null
     this.stats = null
     this.cubeMap = null
+    this.outlinePass = null
   },
   methods: {
+    handleSelect(index) {
+      const depArr = ['dep1', 'dep2', 'dep3']
+      const carArr = ['bus']
+      switch (index) {
+        case '0':
+          this.addCSS2DLabel()
+          break
+        case '1':
+          this.initCharts()
+          break
+        case '2':
+          this.addSpriteLabel(depArr, require('../../public/static/images/down.png'))
+          break
+        case '3':
+          this.initSceneCharts(carArr)
+          break
+        case '4':
+          this.followTruck = true
+          this.initSceneCharts(carArr)
+          break
+        case '5':
+          this.containBox()
+          break
+        case '6':
+          this.followTruck = false
+          this.controls.position0 = new THREE.Vector3(1500, 1500, 1500)
+          this.controls.reset()
+          break
+      }
+    },
     init() {
       this.initScene()
       this.initCamera()
@@ -120,28 +145,36 @@ export default {
       this.initStats()
       this.initRenderer()
       this.initControls()
-      this.render()
       this.initGUI()
-      this.initModel('city').then(obj => {
-        this.initTrail(obj)
-        this.animate()
-      })
       this.addSkybox()
-      // this.addLabel()
-      window.addEventListener('resize', this.onWindowResize)
+      this.initComposer()
+      this.initModel('city')
+          .then(obj => {
+            const loadingMask = document.querySelector('#loadingHtml')
+            loadingMask.remove()
+            this.initTrail(obj)
+            this.animate()
+            this.groupIndex = this.scene.children.findIndex(item => item.type === 'Group')
+          })
+      window.addEventListener('resize', this.onWindowResize, false)
     },
-    // 初始化场景
+    initLoading() {
+      const loadingHtml = document.createElement('div')
+      loadingHtml.id = 'loadingHtml'
+      const loadingImage = document.createElement('div')
+      loadingImage.classList.add('load')
+      loadingHtml.appendChild(loadingImage)
+      document.body.appendChild(loadingHtml)
+    },
     initScene() {
       this.scene = new THREE.Scene()
       // this.scene.fog = new THREE.Fog(this.scene.background, 3000, 5000)
     },
-    // 初始化相机
     initCamera() {
       this.camera = new THREE.PerspectiveCamera(45, this.container.clientWidth / this.container.clientHeight, 10, 10000)
       this.camera.position.set(1500, 1500, 1500)
       this.camera.lookAt(new THREE.Vector3(0, 0, 0))
     },
-    // 初始化灯光
     initLight() {
       const PointLight = new THREE.PointLight(0xffffff, 0.6)// 平行光
       // directionalLight.color.setHSL(0.1, 1, 0.95)
@@ -152,7 +185,29 @@ export default {
       this.scene.add(ambient)
       this.camera.add(PointLight)
     },
-    // 初始化性能插件
+    initRenderer() {
+      this.css2dRender = new CSS2DRenderer()
+      this.css2dRender.setSize(this.container.clientWidth, this.container.clientHeight)
+      this.css2dRender.domElement.style.position = 'absolute'
+      // 相对鼠标的相对偏移
+      this.css2dRender.domElement.style.top = '0'
+      this.css2dRender.domElement.className = 'css2dRender'
+      // 设置.pointerEvents=none，以免模型标签HTML元素遮挡鼠标选择场景模型
+      this.css2dRender.domElement.style.pointerEvents = 'none'
+      this.container.appendChild(this.css2dRender.domElement)
+      // 抗锯齿
+      this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true, logarithmicDepthBuffer: true})
+      this.renderer.setPixelRatio(window.devicePixelRatio)
+      this.renderer.setSize(this.container.clientWidth, this.container.clientHeight)
+      this.renderer.setClearColor(0xffffff, 1.0)
+      // 把自动清除颜色缓存关闭 这个如果不关闭 后期处理这块会不能有效显示
+      // 书上的描述是 如果不这样做，每次调用效果组合器的render()函数时，之前渲染的场景会被清理掉。通过这种方法，我们只会在render循环开始时，把所有东西清理一遍。
+      this.renderer.autoClear = false
+      // 伽马值启动 更像人眼观察的场景
+      this.renderer.gammaIntput = true
+      this.renderer.gammaOutput = true
+      this.container.appendChild(this.renderer.domElement)
+    },
     initStats() {
       this.stats = new Stats()
       this.stats.domElement.style.position = 'absolute'
@@ -161,7 +216,14 @@ export default {
       document.body.appendChild(this.stats.domElement)
       return this.stats
     },
-    // 初始化轨迹球控件
+    initGUI() {
+      const gui = new GUI()
+      gui.domElement.classList.add()
+      gui.domElement.style.cssText = 'position:absolute;top:0;right:0;'
+      gui.add(this.effectController, 'name').name("propName1：").listen()
+      gui.add(this.effectController, 'num').name("propName2：").listen()
+      gui.add(this.effectController, 'layerNum').name("propName3：").listen()
+    },
     initControls() {
       this.controls = new OrbitControls(this.camera, this.renderer.domElement)
       // 如果使用animate方法时，将此函数删除
@@ -184,59 +246,46 @@ export default {
       // 最大角度
       this.controls.maxPolarAngle = Math.PI / 2.2
     },
-    // 更新控件
-    update() {
-      this.stats.update()
-      this.controls.update()
+    initComposer() {
+      this.effectComposer = new EffectComposer(this.renderer)
+      this.effectComposer.renderTarget1.stencilBuffer = true
+      this.effectComposer.renderTarget2.stencilBuffer = true
+      // 初始化bloomPass
+      const bloomPass = new UnrealBloomPass(
+          new THREE.Vector2(window.innerWidth, window.innerHeight),
+          1.5,
+          0.4,
+          0.85
+      )
+      // 一些参数 可以调整看效果
+      bloomPass.threshold = 0.36
+      bloomPass.strength = 0.6
+      bloomPass.radius = 0
+      // effectCopy
+      const effectCopy = new ShaderPass(CopyShader)
+      // 让effectCopy渲染到屏幕上 没这句不会再屏幕上渲染
+      effectCopy.renderToScreen = true
+      // 添加renderPass通道，这个通道会渲染场景，但不会将渲染结果输出到屏幕上。
+      const renderPass = new RenderPass(this.scene, this.camera)
+      this.effectComposer.addPass(renderPass)
+      // _this.effectComposer.addPass(bloomPass)
+      this.effectComposer.addPass(effectCopy)
+      // three.js使用OutlinePass给3D对象添加轮廓线
+      this.outlinePass = new OutlinePass(new THREE.Vector2(window.innerWidth, window.innerHeight), this.scene, this.camera)
+      // outlinePass.edgeStrength = 5//包围线浓度
+      // outlinePass.edgeGlow = 0.5//边缘线范围
+      // outlinePass.edgeThickness = 2//边缘线浓度
+      // outlinePass.pulsePeriod = 2//包围线闪烁频率
+      this.outlinePass.visibleEdgeColor.set(0x00ffff)//包围线颜色
+      // outlinePass.hiddenEdgeColor.set('#190a05')//被遮挡的边界线颜色
+      this.effectComposer.addPass(this.outlinePass)
+      // 该着色器主要功能是解决锯齿问题
+      const effectFXAA = new ShaderPass(FXAAShader)
+      effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight)
+      effectFXAA.renderToScreen = true
+      this.effectComposer.addPass(effectFXAA)
+      threeJSComposer(this)
     },
-    // 初始化渲染器
-    initRenderer() {
-      this.css2dRender = new CSS2DRenderer()
-      this.css2dRender.setSize(this.container.clientWidth, this.container.clientHeight)
-      this.css2dRender.domElement.style.position = 'absolute'
-      // 相对鼠标的相对偏移
-      this.css2dRender.domElement.style.top = '0'
-      this.css2dRender.domElement.className = 'css2dRender'
-      // 设置.pointerEvents=none，以免模型标签HTML元素遮挡鼠标选择场景模型
-      this.css2dRender.domElement.style.pointerEvents = 'none';
-      this.container.appendChild(this.css2dRender.domElement)
-      // 抗锯齿
-      this.renderer = new THREE.WebGLRenderer({antialias: true, alpha: true, logarithmicDepthBuffer: true})
-      this.renderer.setPixelRatio(window.devicePixelRatio);
-      this.renderer.setSize(this.container.clientWidth, this.container.clientHeight)
-      this.renderer.setClearColor(0xffffff, 1.0)
-      // 把自动清除颜色缓存关闭 这个如果不关闭 后期处理这块会不能有效显示
-      // 书上的描述是 如果不这样做，每次调用效果组合器的render()函数时，之前渲染的场景会被清理掉。通过这种方法，我们只会在render循环开始时，把所有东西清理一遍。
-      this.renderer.autoClear = false
-      // 伽马值启动 更像人眼观察的场景
-      this.renderer.gammaIntput = true
-      this.renderer.gammaOutput = true
-      this.container.appendChild(this.renderer.domElement)
-    },
-    // 渲染
-    render() {
-      // 使用加减法可以设置不同的运动方向
-
-      /* if (this.progress > 1.0) {
-         return;    //停留在管道末端,否则会一直跑到起点 循环再跑
-       }*/
-      this.progress += 0.0009
-      if (this.curve) {
-        let point = this.curve.getPoint(this.progress)
-        let point1 = this.curve.getPoint(this.progress + 0.001)
-        if (point && point.x) {
-          this.truck.position.set(point.x, point.y, point.z)
-          this.truck.lookAt(point1.x, point1.y, point1.z)
-          if (this.followTruck) {
-            this.camera.position.set(point.x, point.y + 40, point.z)
-            this.camera.lookAt(point1.x, point1.y + 40, point1.z)
-            this.controls.position0.set(point.x, point.y + 40, point.z)
-            this.controls.target.set(point1.x, point1.y + 40, point1.z)
-          }
-        }
-      }
-    },
-    // 放置天空盒
     addSkybox() {
       const urls = [
         require('../../public/static/images/skybox/dark-s_px.jpg'), // right
@@ -248,7 +297,8 @@ export default {
       ]
       this.cubeMap = new THREE.CubeTextureLoader().load(urls)
       this.scene.background = this.cubeMap
-      /*const equirectShader = THREE.ShaderLib['equirect']
+      /*
+      const equirectShader = THREE.ShaderLib['equirect']
       const equirectMaterial = new THREE.ShaderMaterial({
         fragmentShader: equirectShader.fragmentShader,
         vertexShader: equirectShader.vertexShader,
@@ -257,23 +307,21 @@ export default {
         side: THREE.BackSide
       })
       equirectMaterial.uniforms['tEquirect'].value = this.cubeMap
-
       const skyBox = new THREE.Mesh(new THREE.BoxGeometry(10000, 10000, 10000), equirectMaterial)
-
-      this.scene.add(skyBox)*/
+      this.scene.add(skyBox)
+      */
     },
-    // 初始化模型
     initModel(url) {
       return new Promise((resolve, reject) => {
         const axes = new THREE.AxesHelper(5000)
         this.scene.add(axes)
-        const helper = new THREE.GridHelper(10000, 2, 0xffffff, 0xffffff);
-        this.scene.add(helper);
+        const helper = new THREE.GridHelper(10000, 2, 0xffffff, 0xffffff)
+        this.scene.add(helper)
         new MTLLoader()
             .setPath('/static/obj/')
             .load(`${url}.mtl`, materials => {
 
-              materials.preload();
+              materials.preload()
 
               new OBJLoader()
                   .setMaterials(materials)
@@ -290,13 +338,7 @@ export default {
                         child.geometry.center(centroid.x, centroid.y, centroid.z)
                         child.position.set(centroid.x, centroid.y, centroid.z)
                       })
-                      // obj.scale.set(20,20,20)
-                      // obj.translateY(-100)
                       this.scene.add(obj)
-                      this.effectComposer = new EffectComposer(this.renderer)
-                      this.effectComposer.renderTarget1.stencilBuffer = true
-                      this.effectComposer.renderTarget2.stencilBuffer = true
-                      threeJSComposer(this)
                       resolve(obj)
                     } else {
                       reject('load error')
@@ -328,124 +370,108 @@ export default {
          arr.push(i)
        }
        // 生成一个时间序列
-       const times = new Float32Array(arr);
+       const times = new Float32Array(arr)
 
        const posArr = []
        vertices.forEach(elem => {
          posArr.push(elem.x, elem.y, elem.z)
-       });
+       })
        // 创建一个和时间序列相对应的位置坐标系列
-       const values = new Float32Array(posArr);
+       const values = new Float32Array(posArr)
        // 创建一个帧动画的关键帧数据，曲线上的位置序列对应一个时间序列
-       const posTrack = new THREE.KeyframeTrack('.position', times, values);
-       const duration = 101;
-       const clip = new THREE.AnimationClip("default", duration, [posTrack]);
-         this.mixer = new THREE.AnimationMixer(obj.getObjectByName('truck4'));
-         const AnimationAction = this.mixer.clipAction(clip);
-         AnimationAction.timeScale = 20;
-         AnimationAction.play();*/
+       const posTrack = new THREE.KeyframeTrack('.position', times, values)
+       const duration = 101
+       const clip = new THREE.AnimationClip("default", duration, [posTrack])
+         this.mixer = new THREE.AnimationMixer(obj.getObjectByName('truck4'))
+         const AnimationAction = this.mixer.clipAction(clip)
+         AnimationAction.timeScale = 20
+         AnimationAction.play()*/
     },
-    // 初始化GUI
-    initGUI() {
-      const gui = new GUI()
-      gui.domElement.classList.add()
-      gui.domElement.style.cssText = 'position:absolute;top:0;right:0;display:none'
-      gui.add(this.effectController, 'name').name("楼栋名称：").listen()
-      gui.add(this.effectController, 'num').name("居住人数：").listen()
-      gui.add(this.effectController, 'layerNum').name("楼栋层数：").listen()
-    },
-    // 窗口尺寸变化处理函数
-    onWindowResize() {
-      this.camera.aspect = window.innerWidth / window.innerHeight
-      this.camera.updateProjectionMatrix()
-      this.renderer.setSize(this.container.clientWidth, this.container.clientHeight)
-      this.css2dRender.setSize(this.container.clientWidth, this.container.clientHeight)
-    },
-    // 动画
     animate() {
       const delta = this.clock.getDelta()
-      // 循环渲染
-      this.render()
-      this.update()
+      this.truckAnimate()
+      // 更新控件
+      this.stats.update()
+      this.controls.update()
       this.css2dRender.render(this.scene, this.camera)
       // 刷新动画
-      // this.camera.lookAt(this.scene.position)
       TWEEN.update()
       this.effectComposer.render(delta)
       // 更新帧动画的时间
-      // this.mixer.update(delta);
+      // this.mixer.update(delta)
       // 请求动画帧
       requestAnimationFrame(this.animate)
     },
-    addLabel() {
-      // 防止重复添加标签
-      /*for (const ele of this.labelArray) {
-        const label = this.scene.getObjectByName(ele)
-        if (label) return
-      }*/
-      this.depInfos = this.scene.children[3].children.filter(ele => ele.name.startsWith('car'))
-      this.depInfos.forEach(ele => {
-        const label = this.createTag(ele)
-        ele.add(label)
-      })
-    },
-    delLabel() {
-      for (const child of this.spriteArr) {
-          this.scene.remove(child)
-      }
-      for (const ele of this.labelArray) {
-        const label = this.scene.getObjectByName(ele)
-        if (label) {
-          label.parent.remove(label)
+    truckAnimate() {
+      // 使用加减法可以设置不同的运动方向
+      /* if (this.progress > 1.0) {
+         return  //停留在管道末端,否则会一直跑到起点 循环再跑
+       }*/
+      this.progress += 0.0009
+      if (this.curve) {
+        let point = this.curve.getPoint(this.progress)
+        let point1 = this.curve.getPoint(this.progress + 0.001)
+        if (point && point.x) {
+          this.truck.position.set(point.x, point.y, point.z)
+          this.truck.lookAt(point1.x, point1.y, point1.z)
+          if (this.followTruck) {
+            this.camera.position.set(point.x, point.y + 40, point.z)
+            this.camera.lookAt(point1.x, point1.y + 40, point1.z)
+            this.controls.position0.set(point.x, point.y + 40, point.z)
+            this.controls.target.set(point1.x, point1.y + 40, point1.z)
+          }
         }
       }
     },
-    // 创建一个html标签
-    createTag(ele) {
-      const div = document.createElement('div');
-      div.textContent = ele.name;
-      // div元素包装成为css2模型对象CSS2DObject
-      const label = new CSS2DObject(div);
-      label.name = 'dep' + ele.name
-      this.labelArray.push(label.name)
-      div.className = 'css2dLabel'
-      // 设置HTML元素标签在three.js世界坐标中位置
-      return label;
+    addCSS2DLabel() {
+      if (this.css2dLabelArray.length) {
+        for (const label of this.css2dLabelArray) {
+          label.parent.remove(label)
+        }
+        this.css2dLabelArray.splice(0)
+      } else {
+        const labelObj = this.scene.children[this.groupIndex].children.filter(ele => ele.name.startsWith('car'))
+        labelObj.forEach(ele => {
+          const css2dLabel = document.createElement('div')
+          css2dLabel.textContent = ele.name
+          const label = new CSS2DObject(css2dLabel)
+          // label.name = ele.name + 'css2dLabel'
+          this.css2dLabelArray.push(label)
+          css2dLabel.classList.add('css2dLabel')
+          ele.add(label)
+        })
+      }
     },
-    handleSelect(index) {
-      const depArr = ['dep1', 'dep2', 'dep3']
-      const carArr = ['bus']
-      switch (index) {
-        case '1':
-          this.addLabel()
-          break
-        case '2':
-          this.initCharts()
-          break
-        case '3':
-          this.delLabel()
-          break
-        case '4':
-          this.addIdentification(depArr, require('../../public/static/images/down.png'))
-          break
-        case '5':
-          this.initSceneCharts(carArr)
-          break
-        case '6':
-          this.followTruck = true
-          this.initSceneCharts(carArr)
-          break
-        case '7':
-          this.followTruck = false
-          this.controls.position0 = new THREE.Vector3(1500, 1500, 1500)
-          this.controls.reset()
-          this.containBox()
-          break;
+    addSpriteLabel(meshNames, imgUrl) {
+      if (this.spriteLabelArray.length) {
+        for (const label of this.spriteLabelArray) {
+          label.parent.remove(label)
+        }
+        this.spriteLabelArray.splice(0)
+      } else {
+        for (const meshName of meshNames) {
+          const _obj = this.scene.getObjectByName(meshName)
+          const spriteMaterial = new THREE.SpriteMaterial({
+            map: new THREE.TextureLoader().load(imgUrl),
+            transparent: true,
+            color: 0xcc0000
+          })
+          const sprite = new THREE.Sprite(spriteMaterial)
+          sprite.name = 'sprite'
+          // 把精灵模型插入到模型对象的父对象下面
+          // 表示标签信息的精灵模型对象相对父对象设置一定的偏移
+          sprite.position.set(_obj.position.x, _obj.position.y, _obj.position.z)
+          sprite.scale.set(50, 50, 50)
+          sprite.translateY(_obj.position.y + 100)
+          sprite.matrixWorldNeedsUpdate = true
+          this.spriteLabelArray.push(sprite)
+          this.scene.add(sprite)
+        }
       }
     },
     initSceneCharts(meshNames) {
       const div = document.createElement('canvas')
-      div.style.cssText = 'position: absolute;left: 0;bottom: 0'
+      div.style.cssText = 'position: absolute;left: 0;bottom: 0;'
       div.style.width = '400px'
       div.style.height = '400px'
       const option = {
@@ -490,38 +516,37 @@ export default {
             ]
           }
         ]
-      };
+      }
       for (const meshName of meshNames) {
         const _obj = this.scene.getObjectByName(meshName)
-        const pieChart = echarts.init(div);
-        pieChart.setOption(option);
+        const pieChart = echarts.init(div)
+        pieChart.setOption(option)
         pieChart.on('finished', () => {
-          const infoEchart = new THREE.TextureLoader().load(pieChart.getDataURL());
+          const infoEchart = new THREE.TextureLoader().load(pieChart.getDataURL())
 
           const infoEchartMaterial = new THREE.MeshBasicMaterial({
             transparent: true,
             opacity: 1,
             map: infoEchart,
             side: THREE.DoubleSide
-          });
+          })
 
-          const echartPlane = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), infoEchartMaterial);
-          echartPlane.position.set(_obj.position.x, _obj.position.y, _obj.position.z);
-          echartPlane.translateY(_obj.position.y + 100);
-          this.scene.add(echartPlane);
-        });
+          const echartPlane = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), infoEchartMaterial)
+          echartPlane.position.set(_obj.position.x, _obj.position.y, _obj.position.z)
+          echartPlane.translateY(_obj.position.y + 100)
+          this.scene.add(echartPlane)
+        })
       }
     },
     initCharts() {
       for (const ele of document.querySelectorAll('.chart')) {
         ele.style.backgroundColor = 'rgba(25,25,25,0.5)'
         ele.style.display = ele.style.display === 'block' ? 'none' : 'block'
-
       }
       const div1 = document.querySelector('#chart1')
       const div2 = document.querySelector('#chart2')
-      const pageChart1 = echarts.init(div1);
-      const pageChart2 = echarts.init(div2);
+      const pageChart1 = echarts.init(div1)
+      const pageChart2 = echarts.init(div2)
       const option1 = {
         title: {
           text: '部门统计',
@@ -557,9 +582,9 @@ export default {
           }
         ]
       }
-      const data = [];
+      const data = []
       for (let i = 0; i < 5; ++i) {
-        data.push(Math.round(Math.random() * 200));
+        data.push(Math.round(Math.random() * 200))
       }
       const option2 = {
         xAxis: {
@@ -593,14 +618,14 @@ export default {
         animationDurationUpdate: 3000,
         animationEasing: 'linear',
         animationEasingUpdate: 'linear'
-      };
+      }
 
       function run() {
         for (let i = 0; i < data.length; ++i) {
           if (Math.random() > 0.9) {
-            data[i] += Math.round(Math.random() * 2000);
+            data[i] += Math.round(Math.random() * 2000)
           } else {
-            data[i] += Math.round(Math.random() * 200);
+            data[i] += Math.round(Math.random() * 200)
           }
         }
         pageChart2.setOption({
@@ -610,44 +635,23 @@ export default {
               data
             }
           ]
-        });
+        })
       }
 
       setTimeout(() => {
-        run();
-      }, 0);
+        run()
+      }, 0)
       setInterval(() => {
-        run();
-      }, 3000);
+        run()
+      }, 3000)
       pageChart1.setOption(option1)
       this.container.appendChild(div1)
       pageChart2.setOption(option2)
       this.container.appendChild(div2)
     },
-    //添加图片标识
-    addIdentification(meshNames, imgUrl) {
-      for (const meshName of meshNames) {
-        const _obj = this.scene.getObjectByName(meshName)
-        const spriteMaterial = new THREE.SpriteMaterial({
-          map: new THREE.TextureLoader().load(imgUrl),
-          transparent: true,
-          color: 0xcc0000
-        })
-        const sprite = new THREE.Sprite(spriteMaterial)
-        sprite.name = 'sprite'
-        // 把精灵模型插入到模型对象的父对象下面
-        // 表示标签信息的精灵模型对象相对父对象设置一定的偏移
-        sprite.position.set(_obj.position.x, _obj.position.y, _obj.position.z)
-        sprite.scale.set(50, 50, 50);
-        sprite.translateY(_obj.position.y + 100);
-        sprite.matrixWorldNeedsUpdate = true
-        this.spriteArr.push(sprite)
-        this.scene.add(sprite)
-      }
-    },
     containBox() {
       const depArr = []
-      for (const child of this.scene.children[3].children) {
+      for (const child of this.scene.children[this.groupIndex].children) {
         if (child.name.startsWith('dep')) {
           const box = new THREE.Box3()
           child.geometry.computeBoundingBox()
@@ -681,6 +685,13 @@ export default {
         cube.position.set(depArr[i].mesh.position.x, 0, depArr[i].mesh.position.z)
         this.scene.add(cube)
       }
+    },
+    onWindowResize() {
+      this.camera.aspect = window.innerWidth / window.innerHeight
+      this.camera.updateProjectionMatrix()
+      this.renderer.setSize(this.container.clientWidth, this.container.clientHeight)
+      this.css2dRender.setSize(this.container.clientWidth, this.container.clientHeight)
+      this.animate()
     }
   }
 }
@@ -691,11 +702,11 @@ export default {
   position: absolute;
   background: rgba(0, 0, 0, 0.6);
   color: #ffffff;
-}
 
-.label span {
-  display: inline-block;
-  width: 100px;
+  span {
+    display: inline-block;
+    width: 100px;
+  }
 }
 
 .chartLayout {
@@ -715,12 +726,13 @@ export default {
   right: 0;
 }
 
-/deep/ .el-menu {
+.el-menu {
   height: 100%;
 }
 
 .el-main {
   padding: 0;
+  margin: 0;
 }
 
 
@@ -731,17 +743,18 @@ export default {
   position: absolute;
   border-radius: 5px;
   font-size: 16px;
-  pointer-events: none
+  pointer-events: none;
+
+  &::after {
+    border: 5px solid transparent;
+    border-top-color: rgba(25, 25, 25, 0.5);
+    content: '';
+    height: 0;
+    width: 0;
+    position: absolute;
+    top: 100%;
+    left: 10px;
+  }
 }
 
-/deep/ .css2dLabel:after {
-  border: 5px solid transparent;
-  border-top-color: rgba(25, 25, 25, 0.5);
-  content: '';
-  height: 0;
-  width: 0;
-  position: absolute;
-  top: 100%;
-  left: 10px;
-}
 </style>
