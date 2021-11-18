@@ -3,7 +3,7 @@
 </template>
 
 <script>
-import City from "@/components/City";
+import City from "@/components/City"
 
 export default {
   name: 'App',

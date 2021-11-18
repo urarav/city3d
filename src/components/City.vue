@@ -35,13 +35,11 @@
 <script>
 import * as THREE from 'three'
 import * as echarts from "echarts"
-import Stats from '../../public/static/js/stats'
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls'
 import {GUI} from 'three/examples/jsm/libs/dat.gui.module'
 import {TWEEN} from "three/examples/jsm/libs/tween.module.min"
 import {MTLLoader} from 'three/examples/jsm/loaders/MTLLoader'
 import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader'
-import {threeJSComposer} from "../../public/static/js/threeJSComposer"
 import {EffectComposer} from "three/examples/jsm/postprocessing/EffectComposer"
 import {CSS2DObject, CSS2DRenderer} from "three/examples/jsm/renderers/CSS2DRenderer"
 import {UnrealBloomPass} from "three/examples/jsm/postprocessing/UnrealBloomPass"
@@ -50,6 +48,9 @@ import {RenderPass} from "three/examples/jsm/postprocessing/RenderPass"
 import {OutlinePass} from "three/examples/jsm/postprocessing/OutlinePass"
 import {CopyShader} from "three/examples/jsm/shaders/CopyShader"
 import {FXAAShader} from "three/examples/jsm/shaders/FXAAShader"
+import Stats from '../../public/static/js/stats'
+import {mousePick} from "../../public/static/js/mousePick"
+import {FlowTexture} from "../../public/static/js/flowTexture";
 
 export default {
   name: "City",
@@ -96,6 +97,7 @@ export default {
     this.outlinePass = null
     this.css2dRender = null
     this.effectComposer = null
+    this.rollTexture = null
     this.clock = new THREE.Clock()
     this.container = document.querySelector('#container')
     this.initLoading()
@@ -110,7 +112,7 @@ export default {
     this.renderer.forceContextLoss()
     this.renderer.dispose()
     this.renderer.content = null
-    let gl = this.renderer.domElement.getContext('webgl')
+    const gl = this.renderer.domElement.getContext('webgl')
     gl && gl.getExtension('WEBGL_lose_context').loseContext()
     this.controls = null
     this.css2dRender = null
@@ -118,8 +120,8 @@ export default {
   },
   methods: {
     handleSelect(index) {
-      const depArr = ['trafficLight1', 'trafficLight2', 'trafficLight3']
-      const carArr = ['bus']
+      const tlArr = ['trafficLight1', 'trafficLight2', 'trafficLight3']
+      const depArr = ['dep1']
       switch (index) {
         case '0':
           this.addCSS2DLabel()
@@ -128,14 +130,13 @@ export default {
           this.initCharts()
           break
         case '2':
-          this.addSpriteLabel(depArr, require('../../public/static/images/video.png'))
+          this.addSpriteLabel(tlArr, require('../../public/static/images/video.png'))
           break
         case '3':
-          this.initSceneCharts(carArr)
+          this.initSceneCharts(depArr)
           break
         case '4':
           this.followTruck = true
-          this.initSceneCharts(carArr)
           break
         case '5':
           this.containBox()
@@ -159,6 +160,7 @@ export default {
       this.initGUI()
       this.addSkybox()
       this.initComposer()
+      this.initFlowLabel()
       this.initModel('city')
           .then(obj => {
             const loadingMask = document.querySelector('#loadingHtml')
@@ -297,7 +299,7 @@ export default {
       effectFXAA.uniforms['resolution'].value.set(1 / window.innerWidth, 1 / window.innerHeight)
       effectFXAA.renderToScreen = true
       this.effectComposer.addPass(effectFXAA)
-      threeJSComposer(this)
+      mousePick(this)
     },
     addSkybox() {
       const urls = [
@@ -373,12 +375,12 @@ export default {
       // 初始化曲线的顶点(放样点，数值越大弯曲更光滑)
       const vertices = this.curve.getPoints(100)
       const geometry = new THREE.BufferGeometry().setFromPoints(vertices)
-      let material = new THREE.LineBasicMaterial({transparent: this, opacity: 0})
-      let curveObject = new THREE.Line(geometry, material)
+      const material = new THREE.LineBasicMaterial({transparent: this, opacity: 0})
+      const curveObject = new THREE.Line(geometry, material)
       this.scene.add(curveObject)
       this.truck = obj.getObjectByName('truck4')
       // 声明一个数组用于存储时间序列
-      /* let arr = []
+      /* const arr = []
        for (let i = 0; i < 101; i++) {
          arr.push(i)
        }
@@ -417,6 +419,8 @@ export default {
       TWEEN.update()
       // 更新帧动画的时间
       // this.mixer.update(delta)
+      // 更新纹理移动
+      this.rollTexture.offset.x += 0.001
       const time = Date.now() * 0.00005;
       for (let i = 0; i < this.scene.children.length; i++) {
         const object = this.scene.children[i];
@@ -432,8 +436,8 @@ export default {
        }*/
       this.progress += 0.0009
       if (this.curve) {
-        let point = this.curve.getPoint(this.progress)
-        let point1 = this.curve.getPoint(this.progress + 0.001)
+        const point = this.curve.getPoint(this.progress)
+        const point1 = this.curve.getPoint(this.progress + 0.001)
         if (point && point.x) {
           this.truck.position.set(point.x, point.y, point.z)
           this.truck.lookAt(point1.x, point1.y, point1.z)
@@ -492,71 +496,67 @@ export default {
       }
     },
     initSceneCharts(meshNames) {
-      const div = document.createElement('canvas')
-      div.style.cssText = 'position: absolute;left: 0;bottom: 0;'
-      div.style.width = '400px'
-      div.style.height = '400px'
       const option = {
+        title: {
+          text: '某站点用户访问来源',
+          subtext: '纯属虚构',
+          x: 'center'
+        },
         tooltip: {
-          trigger: 'item'
+          trigger: 'item',
+          formatter: "{a} <br/>{b} : {c} ({d}%)"
         },
         legend: {
-          top: '5%',
-          left: 'center'
+          orient: 'vertical',
+          left: 'left',
+          data: ['直接访问', '邮件营销', '联盟广告', '视频广告', '搜索引擎']
         },
         series: [
           {
-            name: 'data',
+            name: '访问来源',
             type: 'pie',
-            radius: ['40%', '70%'],
-            avoidLabelOverlap: false,
-            itemStyle: {
-              borderRadius: 10,
-              borderColor: '#fff',
-              borderWidth: 2
-            },
-            label: {
-              show: false,
-              position: 'center'
-            },
-            emphasis: {
-              label: {
-                show: true,
-                fontSize: '40',
-                fontWeight: 'bold'
-              }
-            },
-            labelLine: {
-              show: false
-            },
+            radius: '55%',
+            center: ['50%', '60%'],
             data: [
-              {value: 1048, name: 'A'},
-              {value: 735, name: 'B'},
-              {value: 580, name: 'C'},
-              {value: 484, name: 'D'},
-              {value: 300, name: 'E'}
-            ]
+              {value: 335, name: '直接访问'},
+              {value: 310, name: '邮件营销'},
+              {value: 234, name: '联盟广告'},
+              {value: 135, name: '视频广告'},
+              {value: 1548, name: '搜索引擎'}
+            ],
+            itemStyle: {
+              emphasis: {
+                shadowBlur: 10,
+                shadowOffsetX: 0,
+                shadowColor: 'rgba(0, 0, 0, 0.5)'
+              }
+            }
           }
         ]
       }
+      const div = document.createElement('div')
+      div.style.cssText = 'position: absolute;left: 0;bottom: 0;'
+      div.style.width = '512px'
+      div.style.height = '512px'
       for (const meshName of meshNames) {
         const _obj = this.scene.getObjectByName(meshName)
         const pieChart = echarts.init(div)
         pieChart.setOption(option)
         pieChart.on('finished', () => {
-          const infoEchart = new THREE.TextureLoader().load(pieChart.getDataURL())
+          const spriteMap = new THREE.TextureLoader().load(pieChart.getDataURL());
 
-          const infoEchartMaterial = new THREE.MeshBasicMaterial({
+          const spriteMaterial = new THREE.SpriteMaterial({
             transparent: true,
-            opacity: 1,
-            map: infoEchart,
+            map: spriteMap,
             side: THREE.DoubleSide
           })
 
-          const echartPlane = new THREE.Mesh(new THREE.PlaneGeometry(200, 200), infoEchartMaterial)
-          echartPlane.position.set(_obj.position.x, _obj.position.y, _obj.position.z)
-          echartPlane.translateY(_obj.position.y + 100)
-          this.scene.add(echartPlane)
+          const sprite = new THREE.Sprite(spriteMaterial);
+          sprite.scale.set(500, 500, 1)
+          sprite.position.set(_obj.position.x, _obj.position.y, _obj.position.z);
+          this.scene.add(sprite)
+          sprite.translateY(_obj.position.y + 500)
+          this.scene.add(sprite)
         })
       }
     },
@@ -696,7 +696,8 @@ export default {
         for (const ele of this.containBoxArray) {
           ele.mesh.parent.remove(ele.mesh)
           const cubeInfo = ele.meshBox.getSize(new THREE.Vector3())
-          const cubeGeometry = new THREE.BoxGeometry(cubeInfo.x, cubeInfo.y - Math.round(Math.random() * 200), cubeInfo.z)
+          const height = cubeInfo.y - Math.round(Math.random() * 200)
+          const cubeGeometry = new THREE.BoxGeometry(cubeInfo.x, height, cubeInfo.z)
           const cubeMaterial = new THREE.MeshPhongMaterial({
             color: 0xFFFFFF * Math.random(),
             transparent: true,
@@ -705,6 +706,17 @@ export default {
           const cube = new THREE.Mesh(cubeGeometry, cubeMaterial)
           cube.position.set(ele.mesh.position.x, 0, ele.mesh.position.z)
           this.cubeArray.push(cube)
+          // let vtHeight = 1
+          new TWEEN.Tween({h: 1}).to({
+            h: height
+          }, 2500)
+              .onUpdate(function () {
+                console.log(this._object)
+                cube.geometry = new THREE.BoxGeometry(cubeInfo.x, this._object.h, cubeInfo.z)
+                // const v1 = (this._object.h - vtHeight) / 2
+                // cube.position.y += v1
+                // vtHeight = this._object.h
+              }).easing(TWEEN.Easing.Elastic.Out).start()
           this.scene.add(cube)
         }
       }
@@ -714,9 +726,9 @@ export default {
         this.scene.remove(this.scene.getObjectByName('particles'))
       } else {
         new THREE.TextureLoader().load(require('../../public/static/images/snowflake2.png'), map => {
-          let geometry = new THREE.BufferGeometry()
+          const geometry = new THREE.BufferGeometry()
 
-          let pointsMaterial = new THREE.PointsMaterial({
+          const pointsMaterial = new THREE.PointsMaterial({
 
             size: 30,
             transparent: true,
@@ -727,7 +739,7 @@ export default {
             depthTest: false
           })
 
-          let range = 6000
+          const range = 6000
 
           const vertices = []
           for (let i = 0; i < 100000; i++) {
@@ -746,6 +758,27 @@ export default {
           this.scene.add(particles)
         })
       }
+    },
+    initFlowLabel() {
+      const url = require('../../public/static/images/flow.png')
+      new THREE.TextureLoader().load(url, texture => {
+        this.rollTexture = texture
+        const mesh1 = new FlowTexture(3330, 80, new THREE.Vector3(-500, 0, 425), {
+          X: Math.PI / 2,
+          Z: Math.PI / 2
+        }, url, texture).getRollPlane()
+        const mesh2 = new FlowTexture(850, 80, new THREE.Vector3(-900, 0, -1275), {
+          X: Math.PI / 2,
+          Z: 0
+        }, url, texture).getRollPlane()
+        const mesh3 = new FlowTexture(1300, 80, new THREE.Vector3(-1300, 0, -1950), {
+          X: Math.PI / 2,
+          Z: Math.PI / 2
+        }, url, texture).getRollPlane()
+        for (const mesh of Array.of(mesh1, mesh2, mesh3)) {
+          this.scene.children[this.groupIndex].add(mesh)
+        }
+      })
     },
     onWindowResize() {
       this.camera.aspect = window.innerWidth / window.innerHeight
