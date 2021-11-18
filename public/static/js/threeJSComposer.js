@@ -158,14 +158,14 @@ function threeJSComposer(_this) {
                     selectedObjects.pop()
                     break
             }
-            if (soName.startsWith('trafficLight')) {
+            if (soName.startsWith('sprite')) {
                 const parentDiv = document.createElement('div')
                 parentDiv.className = 'parentVideo'
                 parentDiv.style.position = 'absolute'
                 parentDiv.style.display = 'none'
-                parentDiv.style.backgroundColor = 'rgba(0, 255, 255, 0.5)'
+                parentDiv.style.backgroundColor = 'rgba(25, 25, 25, 0.5)'
                 const titleDiv = document.createElement('div')
-                titleDiv.style.cssText = 'height: 24px;inline-height: 24px;float: left;'
+                titleDiv.style.cssText = 'height: 24px;inline-height: 24px;float: left;color: #FFFFFF'
                 titleDiv.textContent = '监控录像'
                 const closeDiv = document.createElement('div')
                 closeDiv.className = 'videoImg'

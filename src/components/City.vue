@@ -59,7 +59,7 @@ export default {
         {label: 'CSS2D Label', icon: 'el-icon-collection-tag'},
         {label: 'ECharts Page', icon: 'el-icon-s-data'},
         {label: 'Sprite Label', icon: 'el-icon-magic-stick'},
-        {label: 'eCharts Scene', icon: 'el-icon-pie-chart'},
+        {label: 'ECharts Scene', icon: 'el-icon-pie-chart'},
         {label: 'First Person', icon: 'el-icon-place'},
         {label: 'Bounding Box', icon: 'el-icon-view'},
         {label: 'Init Viewport', icon: 'el-icon-loading'},
@@ -118,7 +118,7 @@ export default {
   },
   methods: {
     handleSelect(index) {
-      const depArr = ['dep1', 'dep2', 'dep3']
+      const depArr = ['trafficLight1', 'trafficLight2', 'trafficLight3']
       const carArr = ['bus']
       switch (index) {
         case '0':
@@ -128,7 +128,7 @@ export default {
           this.initCharts()
           break
         case '2':
-          this.addSpriteLabel(depArr, require('../../public/static/images/down.png'))
+          this.addSpriteLabel(depArr, require('../../public/static/images/video.png'))
           break
         case '3':
           this.initSceneCharts(carArr)
@@ -421,7 +421,7 @@ export default {
       for (let i = 0; i < this.scene.children.length; i++) {
         const object = this.scene.children[i];
         if (object instanceof THREE.Points) {
-          object.rotation.z = -(time * (i < 4 ? i + 1 : -(i + 1)));
+          object.rotation.x = -(time * (i < 4 ? i + 1 : -(i + 1)))
         }
       }
     },
@@ -476,15 +476,14 @@ export default {
           const _obj = this.scene.getObjectByName(meshName)
           const spriteMaterial = new THREE.SpriteMaterial({
             map: new THREE.TextureLoader().load(imgUrl),
-            transparent: true,
-            color: 0xcc0000
+            transparent: true
           })
           const sprite = new THREE.Sprite(spriteMaterial)
           sprite.name = 'sprite'
           // 把精灵模型插入到模型对象的父对象下面
           // 表示标签信息的精灵模型对象相对父对象设置一定的偏移
           sprite.position.set(_obj.position.x, _obj.position.y, _obj.position.z)
-          sprite.scale.set(50, 50, 50)
+          sprite.scale.set(100, 100, 100)
           sprite.translateY(_obj.position.y + 100)
           sprite.matrixWorldNeedsUpdate = true
           this.spriteLabelArray.push(sprite)
@@ -711,38 +710,42 @@ export default {
       }
     },
     snowSprite() {
-      /* 雪花图片 */
-      new THREE.TextureLoader().load(require('../../public/static/images/snowflake2.png'), map => {
-        let geometry = new THREE.BufferGeometry()
+      if (this.scene.getObjectByName('particles')) {
+        this.scene.remove(this.scene.getObjectByName('particles'))
+      } else {
+        new THREE.TextureLoader().load(require('../../public/static/images/snowflake2.png'), map => {
+          let geometry = new THREE.BufferGeometry()
 
-        let pointsMaterial = new THREE.PointsMaterial({
+          let pointsMaterial = new THREE.PointsMaterial({
 
-          size: 20,
-          transparent: true,
-          opacity: 0.8,
-          map: map,
-          blending: THREE.AdditiveBlending,
-          sizeAttenuation: true,
-          depthTest: false
+            size: 30,
+            transparent: true,
+            opacity: 0.8,
+            map: map,
+            blending: THREE.AdditiveBlending,
+            sizeAttenuation: true,
+            depthTest: false
+          })
+
+          let range = 6000
+
+          const vertices = []
+          for (let i = 0; i < 100000; i++) {
+            const x = Math.random() * range - range / 2
+            const y = Math.random() * range - range / 2
+            const z = Math.random() * range - range / 2
+            vertices.push(x, y, z)
+          }
+          geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
+          geometry.center()
+          const particles = new THREE.Points(geometry, pointsMaterial)
+          particles.name = 'particles'
+          /*particles.rotation.x = Math.random() * 6;
+          particles.rotation.y = Math.random() * 6;
+          particles.rotation.z = Math.random() * 6;*/
+          this.scene.add(particles)
         })
-
-        let range = 5000;
-
-        const vertices = []
-        for (let i = 0; i < 10000; i++) {
-          const x = Math.random() * range - range / 2
-          const y = Math.random() * range - range / 2
-          const z = Math.random() * range - range / 2
-          vertices.push(x, y, z)
-        }
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3))
-        const particles = new THREE.Points(geometry, pointsMaterial);
-        particles.rotation.x = Math.random() * 6;
-        particles.rotation.y = Math.random() * 6;
-        particles.rotation.z = Math.random() * 6;
-        this.scene.add(particles);
-        console.log(this.scene)
-      })
+      }
     },
     onWindowResize() {
       this.camera.aspect = window.innerWidth / window.innerHeight
