@@ -48,7 +48,6 @@ class FlowTexture {
         texture.wrapS = texture.wrapT = THREE.RepeatWrapping
         const rollMaterial = new THREE.MeshStandardMaterial({
             map: texture,
-            needsUpdate: true,
             transparent: true,
             side: THREE.DoubleSide
         })

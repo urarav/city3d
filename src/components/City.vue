@@ -64,7 +64,8 @@ export default {
         {label: 'First Person', icon: 'el-icon-place'},
         {label: 'Bounding Box', icon: 'el-icon-view'},
         {label: 'Init Viewport', icon: 'el-icon-loading'},
-        {label: 'Snow Weather', icon: 'el-icon-light-rain'}
+        {label: 'Snow Weather', icon: 'el-icon-light-rain'},
+        {label: 'Sprite Canvas', icon: 'el-icon-postcard'}
       ],
       progress: 0,
       groupIndex: 0,
@@ -83,7 +84,10 @@ export default {
         C: ''
       },
       loadFlag: false,
-      followTruck: false
+      followTruck: false,
+      canvas: null,
+      dynamicSprite: null,
+      timer: null
     }
   },
   mounted() {
@@ -102,6 +106,7 @@ export default {
     this.container = document.querySelector('#container')
     this.initLoading()
     this.init()
+    clearInterval(this.timer)
   },
   beforeDestroy() {
     this.scene.clear()
@@ -122,6 +127,15 @@ export default {
     handleSelect(index) {
       const tlArr = ['trafficLight1', 'trafficLight2', 'trafficLight3']
       const depArr = ['dep1']
+      const param = {
+        width: 60,
+        height: 40,
+        text: '10M/s',
+        name: 'dynamicLabel',
+        x: 30,
+        y: 20,
+        z: 20
+      }
       switch (index) {
         case '0':
           this.addCSS2DLabel()
@@ -148,6 +162,10 @@ export default {
           break
         case '7':
           this.snowSprite()
+          break
+        case '8':
+          this.spriteCanvas('truck4', param)
+          break
       }
     },
     init() {
@@ -449,6 +467,10 @@ export default {
           }
         }
       }
+      if (this.dynamicSprite) {
+        this.dynamicSprite.position.set(this.truck.position.x, this.truck.position.y, this.truck.position.z)
+        this.dynamicSprite.translateY(100)
+      }
     },
     addCSS2DLabel() {
       if (this.css2dLabelArray.length) {
@@ -711,7 +733,6 @@ export default {
             h: height
           }, 2500)
               .onUpdate(function () {
-                console.log(this._object)
                 cube.geometry = new THREE.BoxGeometry(cubeInfo.x, this._object.h, cubeInfo.z)
                 // const v1 = (this._object.h - vtHeight) / 2
                 // cube.position.y += v1
@@ -779,6 +800,54 @@ export default {
           this.scene.children[this.groupIndex].add(mesh)
         }
       })
+    },
+    spriteCanvas(mesh, parameters) {
+      const dynamicLabel = this.scene.getObjectByName('dynamicLabel')
+      if (dynamicLabel) {
+        this.scene.remove(dynamicLabel)
+        clearInterval(this.timer)
+      } else {
+        const obj = this.scene.getObjectByName(mesh)
+        const canvas = document.createElement('canvas')
+        canvas.height = parameters.height
+        canvas.width = parameters.width
+        const ctl = canvas.getContext('2d')
+        ctl.fillStyle = 'rgba(102, 255, 153, 0.5)'
+        ctl.fillRect(0, 0, parameters.width, parameters.height)
+        ctl.textAlign = 'center'
+        ctl.textBaseline = 'middle'
+        ctl.font = 'bold 20px Arial'
+        ctl.lineWidth = 32
+        ctl.fillStyle = "rgba(25, 25, 25, 1.0)"
+        ctl.fillText(parameters.text, parameters.x, parameters.y)
+
+        const texture = new THREE.Texture(canvas)
+        texture.needsUpdate = true
+        const spriteMaterial = new THREE.SpriteMaterial({map: texture})
+        const sprite = new THREE.Sprite(spriteMaterial)
+        sprite.position.set(obj.position.x + parameters.x, obj.position.y + parameters.y, obj.position.z + parameters.z)
+        sprite.name = parameters.name
+        sprite.scale.set(100, 100, 100)
+        sprite.translateY(100)
+        this.scene.add(sprite)
+        this.canvas = canvas
+        this.dynamicSprite = sprite
+
+        this.timer = setInterval(() => {
+          const canvas = this.canvas
+          const ctl = canvas.getContext('2d')
+          ctl.clearRect(0, 0, 60, 40)
+          ctl.fillStyle = 'rgba(102, 255, 153, 0.5)'
+          ctl.fillRect(0, 0, 60, 40)
+          ctl.textAlign = 'center'
+          ctl.textBaseline = 'middle'
+          ctl.font = 'bold 20px Arial'
+          ctl.lineWidth = 32
+          ctl.fillStyle = "rgba(25, 25, 25, 1.0)"
+          ctl.fillText(`${Math.round(Math.random() * 20)}M/s`, 30, 20)
+          this.dynamicSprite.material.map.needsUpdate = true
+        }, 1000)
+      }
     },
     onWindowResize() {
       this.camera.aspect = window.innerWidth / window.innerHeight
