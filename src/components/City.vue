@@ -610,11 +610,11 @@ export default {
             type: 'pie',
             radius: '50%',
             data: [
-              {value: 1048, name: '生产部'},
-              {value: 735, name: '系统集成部'},
-              {value: 580, name: '移动电话营销部'},
-              {value: 484, name: '科技发展部'},
-              {value: 300, name: '物料部'}
+              {value: 1048, name: 'dep1'},
+              {value: 735, name: 'dep2'},
+              {value: 580, name: 'dep3'},
+              {value: 484, name: 'dep4'},
+              {value: 300, name: 'dep5'}
             ],
             emphasis: {
               itemStyle: {
@@ -742,16 +742,87 @@ export default {
         }
       }
     },
+    loadTexture(url) {
+      return new Promise((resolve, reject) => {
+        const textureLoader = new THREE.TextureLoader();
+        textureLoader.load(url, map => {
+          if (map) {
+            resolve(map)
+          } else {
+            reject('load error')
+          }
+        });
+      })
+    },
     snowSprite() {
       if (this.scene.getObjectByName('particles')) {
-        this.scene.remove(this.scene.getObjectByName('particles'))
+        for (let i = 0; i < 3; i++) {
+          this.scene.remove(this.scene.getObjectByName('particles'))
+        }
       } else {
-        new THREE.TextureLoader().load(require('../../public/static/images/snowflake2.png'), map => {
+        // 需要加载的纹理图片
+        const textureNameArray = ['test', '1', 'ma']
+        const textureUrlArray = []
+        for (const name of textureNameArray) {
+          textureUrlArray.push(require(`../../public/static/images/${name}.png`))
+        }
+        // 转换为一个期约对象的数组
+        const promises = textureUrlArray.map(url => this.loadTexture(url))
+        // 并行执行期约返回纹理数组后开始初始化
+        Promise.all(promises)
+            .then(textures => {
+              console.log(textures)
+              const geometry = new THREE.BufferGeometry();
+              const vertices = [];
+              const materials = [];
+
+              const range = 6000
+
+              for (let i = 0; i < 1000; i++) {
+
+                const x = Math.random() * range - range / 2
+                const y = Math.random() * range - range / 2
+                const z = Math.random() * range - range / 2
+
+                vertices.push(x, y, z);
+
+              }
+
+              geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+
+              const parameters = [
+                [textures[0], 500],
+                [textures[1], 250],
+                [textures[2], 250]
+              ];
+
+              for (let i = 0; i < parameters.length; i++) {
+
+                const sprite = parameters[i][0];
+                const size = parameters[i][1];
+
+                materials[i] = new THREE.PointsMaterial({
+                  size: size,
+                  map: sprite,
+                  blending: THREE.AdditiveBlending,
+                  depthTest: false,
+                  transparent: true
+                });
+
+                const particles = new THREE.Points(geometry, materials[i]);
+
+                particles.name = 'particles'
+                this.scene.add(particles);
+
+              }
+            })
+            .catch(e => console.error(e))
+        /*new THREE.TextureLoader().load(require('../../public/static/images/test.png'), map => {
           const geometry = new THREE.BufferGeometry()
 
           const pointsMaterial = new THREE.PointsMaterial({
 
-            size: 30,
+            size: 500,
             transparent: true,
             opacity: 0.8,
             map: map,
@@ -763,7 +834,7 @@ export default {
           const range = 6000
 
           const vertices = []
-          for (let i = 0; i < 100000; i++) {
+          for (let i = 0; i < 10000; i++) {
             const x = Math.random() * range - range / 2
             const y = Math.random() * range - range / 2
             const z = Math.random() * range - range / 2
@@ -773,11 +844,11 @@ export default {
           geometry.center()
           const particles = new THREE.Points(geometry, pointsMaterial)
           particles.name = 'particles'
-          /*particles.rotation.x = Math.random() * 6;
+          /!*particles.rotation.x = Math.random() * 6;
           particles.rotation.y = Math.random() * 6;
-          particles.rotation.z = Math.random() * 6;*/
+          particles.rotation.z = Math.random() * 6;*!/
           this.scene.add(particles)
-        })
+        })*/
       }
     },
     initFlowLabel() {
